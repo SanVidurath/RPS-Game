@@ -6,8 +6,15 @@ import {
   ViewChild,
 } from '@angular/core';
 import * as handpose from '@tensorflow-models/handpose';
-import { GestureEstimator, GestureDescription, Finger, FingerCurl } from 'fingerpose';
+import {
+  GestureEstimator,
+  GestureDescription,
+  Finger,
+  FingerCurl,
+} from 'fingerpose';
 import { GameService } from '../game.service';
+import * as tf from '@tensorflow/tfjs';
+import '@tensorflow/tfjs-backend-webgl';
 
 @Component({
   selector: 'app-game',
@@ -31,7 +38,13 @@ export class GameComponent implements OnInit, AfterViewInit {
   }
 
   async loadModel() {
+    console.log('Setting backend...');
+    await tf.setBackend('webgl'); // Use WebGL for performance
+    await tf.ready(); // Ensure TensorFlow.js is ready
+  
+    console.log('Loading handpose model...');
     this.model = await handpose.load();
+    console.log('Model Loaded:', this.model);
   }
 
   async ngAfterViewInit() {
@@ -40,48 +53,58 @@ export class GameComponent implements OnInit, AfterViewInit {
   }
 
   setUpWebCam() {
-    navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
-      this.video.srcObject = stream;
-      this.video.play();
-    });
+    navigator.mediaDevices
+      .getUserMedia({ video: true })
+      .then((stream) => {
+        this.video.srcObject = stream;
+        this.video.play();
+      })
+      .catch((err) => console.error('Webcam access error:', err));
   }
 
   async detectGesture() {
-    const rockGesture = new GestureDescription("Rock");
-    rockGesture.addCurl(Finger.Thumb, FingerCurl.FullCurl);
-    rockGesture.addCurl(Finger.Index, FingerCurl.FullCurl);
-    rockGesture.addCurl(Finger.Middle, FingerCurl.FullCurl);
-    rockGesture.addCurl(Finger.Ring, FingerCurl.FullCurl);
-    rockGesture.addCurl(Finger.Pinky, FingerCurl.FullCurl);
+    const rockGesture = new GestureDescription('Rock');
+    rockGesture.addCurl(Finger.Thumb, FingerCurl.FullCurl, 1.0);
+    rockGesture.addCurl(Finger.Index, FingerCurl.FullCurl, 1.0);
+    rockGesture.addCurl(Finger.Middle, FingerCurl.FullCurl, 1.0);
+    rockGesture.addCurl(Finger.Ring, FingerCurl.FullCurl, 1.0);
+    rockGesture.addCurl(Finger.Pinky, FingerCurl.FullCurl, 1.0);
 
-    const paperGesture = new GestureDescription("Paper");
-    paperGesture.addCurl(Finger.Thumb, FingerCurl.NoCurl);
-    paperGesture.addCurl(Finger.Index, FingerCurl.NoCurl);
-    paperGesture.addCurl(Finger.Middle, FingerCurl.NoCurl);
-    paperGesture.addCurl(Finger.Ring, FingerCurl.NoCurl);
-    paperGesture.addCurl(Finger.Pinky, FingerCurl.NoCurl);
+    const paperGesture = new GestureDescription('Paper');
+    paperGesture.addCurl(Finger.Thumb, FingerCurl.NoCurl, 1.0);
+    paperGesture.addCurl(Finger.Index, FingerCurl.NoCurl, 1.0);
+    paperGesture.addCurl(Finger.Middle, FingerCurl.NoCurl, 1.0);
+    paperGesture.addCurl(Finger.Ring, FingerCurl.NoCurl, 1.0);
+    paperGesture.addCurl(Finger.Pinky, FingerCurl.NoCurl, 1.0);
 
-    const scissorGesture = new GestureDescription("Scissor");
-    scissorGesture.addCurl(Finger.Thumb, FingerCurl.FullCurl);
-    scissorGesture.addCurl(Finger.Index, FingerCurl.NoCurl);
-    scissorGesture.addCurl(Finger.Middle, FingerCurl.NoCurl);
-    scissorGesture.addCurl(Finger.Ring, FingerCurl.FullCurl);
-    scissorGesture.addCurl(Finger.Pinky, FingerCurl.FullCurl);
+    const scissorGesture = new GestureDescription('Scissor');
+    scissorGesture.addCurl(Finger.Thumb, FingerCurl.FullCurl, 1.0);
+    scissorGesture.addCurl(Finger.Index, FingerCurl.NoCurl, 1.0);
+    scissorGesture.addCurl(Finger.Middle, FingerCurl.NoCurl, 1.0);
+    scissorGesture.addCurl(Finger.Ring, FingerCurl.FullCurl, 1.0);
+    scissorGesture.addCurl(Finger.Pinky, FingerCurl.FullCurl, 1.0);
 
     const estimator = new GestureEstimator([
       rockGesture,
       paperGesture,
-      scissorGesture
+      scissorGesture,
     ]);
 
-    setInterval(async() => {
+    setInterval(async () => {
       const predictions = await this.model.estimateHands(this.video);
-      if(predictions.length>0){
+
+      console.log('Hand Predictions:', predictions);
+
+      if (predictions.length > 0) {
         const landmarks = predictions[0].landmarks;
+        console.log('Landmarks:', landmarks);
+
         const gesture = estimator.estimate(landmarks, 7);
 
-        if(gesture.gestures.length > 0){
+        if (gesture.gestures.length > 0) {
           this.detectedGesture = gesture.gestures[0].name;
+          console.log('Detected Gesture:', this.detectedGesture);
+
           this.playGame();
         }
       }
@@ -90,11 +113,12 @@ export class GameComponent implements OnInit, AfterViewInit {
 
   playGame() {
     this.computerChoice = this.gameService.getComputerChoice();
-    const result = this.gameService.determineWinner(this.detectedGesture, this.computerChoice);
+    const result = this.gameService.determineWinner(
+      this.detectedGesture,
+      this.computerChoice
+    );
 
-    if (result === "Player") this.playerScore++;
-    else if (result === "Computer") this.computerScore++;
+    if (result === 'Player') this.playerScore++;
+    else if (result === 'Computer') this.computerScore++;
   }
-
-  
 }
