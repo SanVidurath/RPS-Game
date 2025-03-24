@@ -1,12 +1,22 @@
-<h1>AI Rock, Paper, Scissors</h1>
-<video #webcam autoplay playsinline></video>
+<div class="container d-flex flex-column justify-content-center align-items-center text-center">
+  <h1 class="mb-4">AI RPS Game</h1>
 
-<div class="game-info">
-  <p>Detected Gesture: {{ detectedGesture }}</p>
-  <p>Computer's Choice: {{ computerChoice }}</p>
+  <div class="video-container mb-4"
+  style="position: relative; display: flex; justify-content: center; align-items: center;">
+  <video #webcam autoplay playsinline class="img-fluid" style="max-width: 70%; height: auto;"></video>
+  <div class="countdown position-absolute top-0 start-50 translate-middle-x bg-dark text-white p-2 rounded">
+    {{ countdown }}
+  </div>
+  </div>
 </div>
 
-<div class="scoreboard">
-  <p>Player Score: {{ playerScore }}</p>
-  <p>Computer Score: {{ computerScore }}</p>
+<div class="game-info mb-4 text-center">
+  <p class="h5">You played: {{ detectedGesture }}</p>
+  <p class="h5">Computer played: {{ computerChoice }}</p>
 </div>
+
+<div class="scoreboard mb-4 text-center">
+  <p class="h5">Your Score: {{ playerScore }}</p>
+  <p class="h5">Computer Score: {{ computerScore }}</p>
+</div>
+

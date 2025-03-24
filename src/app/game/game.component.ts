@@ -15,6 +15,7 @@ import {
 import { GameService } from '../game.service';
 import * as tf from '@tensorflow/tfjs';
 import '@tensorflow/tfjs-backend-webgl';
+import { NgIf } from '@angular/common';
 
 @Component({
   selector: 'app-game',
@@ -38,18 +39,19 @@ export class GameComponent implements OnInit, AfterViewInit {
   }
 
   async loadModel() {
-    console.log('Setting backend...');
-    await tf.setBackend('webgl'); // Use WebGL for performance
-    await tf.ready(); // Ensure TensorFlow.js is ready
-  
-    console.log('Loading handpose model...');
+    await tf.setBackend('webgl');
+    await tf.ready();
+
     this.model = await handpose.load();
-    console.log('Model Loaded:', this.model);
   }
 
   async ngAfterViewInit() {
     this.video = this.webcamRef.nativeElement;
     this.setUpWebCam();
+
+    setTimeout(() => {
+      this.detectGesture();
+    }, 3000);
   }
 
   setUpWebCam() {
@@ -62,7 +64,9 @@ export class GameComponent implements OnInit, AfterViewInit {
       .catch((err) => console.error('Webcam access error:', err));
   }
 
-  async detectGesture() {
+  countdown: number = 3;
+
+  private createGestures(): GestureEstimator {
     const rockGesture = new GestureDescription('Rock');
     rockGesture.addCurl(Finger.Thumb, FingerCurl.FullCurl, 1.0);
     rockGesture.addCurl(Finger.Index, FingerCurl.FullCurl, 1.0);
@@ -84,33 +88,98 @@ export class GameComponent implements OnInit, AfterViewInit {
     scissorGesture.addCurl(Finger.Ring, FingerCurl.FullCurl, 1.0);
     scissorGesture.addCurl(Finger.Pinky, FingerCurl.FullCurl, 1.0);
 
-    const estimator = new GestureEstimator([
-      rockGesture,
-      paperGesture,
-      scissorGesture,
-    ]);
+    return new GestureEstimator([rockGesture, paperGesture, scissorGesture]);
+  }
 
-    setInterval(async () => {
-      const predictions = await this.model.estimateHands(this.video);
+  async detectGesture() {
+    const countdownElement = document.querySelector(
+      '.countdown'
+    ) as HTMLElement;
 
-      console.log('Hand Predictions:', predictions);
+    const estimator = this.createGestures();
 
-      if (predictions.length > 0) {
-        const landmarks = predictions[0].landmarks;
-        console.log('Landmarks:', landmarks);
+    // Start countdown method
+    const startCountdown = async (callback: () => void) => {
+      this.countdown = 3;
 
-        const gesture = estimator.estimate(landmarks, 7);
+      if (!countdownElement) {
+        console.error('Countdown element not found!');
+        return;
+      }
 
-        if (gesture.gestures.length > 0) {
-          this.detectedGesture = gesture.gestures[0].name;
+      countdownElement.style.opacity = '1';
+
+      let interval = setInterval(() => {
+        this.countdown--;
+        countdownElement.innerText = this.countdown.toString();
+
+        if (this.countdown === 0) {
+          clearInterval(interval);
+          countdownElement.style.opacity = '0';
+          callback();
+        }
+      }, 1000);
+    };
+    // End countdown method
+
+    // Run detection method starts
+    const runDetection = async () => {
+      setInterval(async () => {
+        if (!this.model) {
+          console.error('Handpose model not loaded yet!');
+          return;
+        }
+
+        const predictions = await this.model.estimateHands(this.video);
+
+        if (predictions.length > 0) {
+          const landmarks = predictions[0].landmarks;
+
+          const gesture = estimator.estimate(landmarks, 7);
           console.log('Detected Gesture:', this.detectedGesture);
 
-          this.playGame();
+          if (gesture.gestures.length > 0) {
+            this.detectedGesture = gesture.gestures[0].name;
+
+            this.playGame();
+            setTimeout(() => startCountdown(runDetection), 2000);
+          } else {
+            console.log('No hand detected.');
+          }
         }
+      }, 1000);
+    };
+
+    startCountdown(runDetection);
+  }
+
+  // Start countdown method starts
+  startCountdown(callback: () => void) {
+    this.countdown = 3;
+    const countdownElement = document.querySelector(
+      '.countdown'
+    ) as HTMLElement;
+
+    if (!countdownElement) {
+      console.error('Countdown element not found!');
+      return;
+    }
+
+    countdownElement.style.opacity = '1';
+
+    let interval = setInterval(() => {
+      this.countdown--;
+
+      if (this.countdown === 0) {
+        clearInterval(interval);
+        countdownElement.style.opacity = '0';
+        callback();
       }
     }, 1000);
   }
+  // Start countdown method ends
 
+  //Play Game method starts
   playGame() {
     this.computerChoice = this.gameService.getComputerChoice();
     const result = this.gameService.determineWinner(
@@ -121,4 +190,5 @@ export class GameComponent implements OnInit, AfterViewInit {
     if (result === 'Player') this.playerScore++;
     else if (result === 'Computer') this.computerScore++;
   }
+  //Play Game method ends
 }
