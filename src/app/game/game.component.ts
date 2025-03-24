@@ -15,11 +15,12 @@ import {
 import { GameService } from '../game.service';
 import * as tf from '@tensorflow/tfjs';
 import '@tensorflow/tfjs-backend-webgl';
-import { NgIf } from '@angular/common';
+import Swal from 'sweetalert2';
+import { InstructionsComponent } from "../instructions/instructions.component";
 
 @Component({
   selector: 'app-game',
-  imports: [],
+  imports: [InstructionsComponent],
   templateUrl: './game.component.html',
   styleUrl: './game.component.css',
 })
@@ -28,9 +29,7 @@ export class GameComponent implements OnInit, AfterViewInit {
   model: any;
   video!: HTMLVideoElement;
   detectedGesture: string = 'Waiting...';
-  computerChoice: string = '🤖';
-  playerScore = 0;
-  computerScore = 0;
+  computerChoice: string = 'Waiting...';
 
   constructor(private gameService: GameService) {}
 
@@ -64,8 +63,6 @@ export class GameComponent implements OnInit, AfterViewInit {
       .catch((err) => console.error('Webcam access error:', err));
   }
 
-  countdown: number = 3;
-
   private createGestures(): GestureEstimator {
     const rockGesture = new GestureDescription('Rock');
     rockGesture.addCurl(Finger.Thumb, FingerCurl.FullCurl, 1.0);
@@ -81,7 +78,7 @@ export class GameComponent implements OnInit, AfterViewInit {
     paperGesture.addCurl(Finger.Ring, FingerCurl.NoCurl, 1.0);
     paperGesture.addCurl(Finger.Pinky, FingerCurl.NoCurl, 1.0);
 
-    const scissorGesture = new GestureDescription('Scissor');
+    const scissorGesture = new GestureDescription('Scissors');
     scissorGesture.addCurl(Finger.Thumb, FingerCurl.FullCurl, 1.0);
     scissorGesture.addCurl(Finger.Index, FingerCurl.NoCurl, 1.0);
     scissorGesture.addCurl(Finger.Middle, FingerCurl.NoCurl, 1.0);
@@ -92,92 +89,30 @@ export class GameComponent implements OnInit, AfterViewInit {
   }
 
   async detectGesture() {
-    const countdownElement = document.querySelector(
-      '.countdown'
-    ) as HTMLElement;
-
     const estimator = this.createGestures();
 
-    // Start countdown method
-    const startCountdown = async (callback: () => void) => {
-      this.countdown = 3;
-
-      if (!countdownElement) {
-        console.error('Countdown element not found!');
+    const detectionInterval = setInterval(async () => {
+      if (!this.model) {
+        console.error('Handpose model not loaded yet!');
         return;
       }
 
-      countdownElement.style.opacity = '1';
+      const predictions = await this.model.estimateHands(this.video);
 
-      let interval = setInterval(() => {
-        this.countdown--;
-        countdownElement.innerText = this.countdown.toString();
+      if (predictions.length > 0) {
+        const landmarks = predictions[0].landmarks;
 
-        if (this.countdown === 0) {
-          clearInterval(interval);
-          countdownElement.style.opacity = '0';
-          callback();
+        const gesture = estimator.estimate(landmarks, 7);
+
+        if (gesture.gestures.length > 0) {
+          this.detectedGesture = gesture.gestures[0].name;
+          this.playGame();
+
+          clearInterval(detectionInterval);
         }
-      }, 1000);
-    };
-    // End countdown method
-
-    // Run detection method starts
-    const runDetection = async () => {
-      setInterval(async () => {
-        if (!this.model) {
-          console.error('Handpose model not loaded yet!');
-          return;
-        }
-
-        const predictions = await this.model.estimateHands(this.video);
-
-        if (predictions.length > 0) {
-          const landmarks = predictions[0].landmarks;
-
-          const gesture = estimator.estimate(landmarks, 7);
-          console.log('Detected Gesture:', this.detectedGesture);
-
-          if (gesture.gestures.length > 0) {
-            this.detectedGesture = gesture.gestures[0].name;
-
-            this.playGame();
-            setTimeout(() => startCountdown(runDetection), 2000);
-          } else {
-            console.log('No hand detected.');
-          }
-        }
-      }, 1000);
-    };
-
-    startCountdown(runDetection);
-  }
-
-  // Start countdown method starts
-  startCountdown(callback: () => void) {
-    this.countdown = 3;
-    const countdownElement = document.querySelector(
-      '.countdown'
-    ) as HTMLElement;
-
-    if (!countdownElement) {
-      console.error('Countdown element not found!');
-      return;
-    }
-
-    countdownElement.style.opacity = '1';
-
-    let interval = setInterval(() => {
-      this.countdown--;
-
-      if (this.countdown === 0) {
-        clearInterval(interval);
-        countdownElement.style.opacity = '0';
-        callback();
       }
     }, 1000);
   }
-  // Start countdown method ends
 
   //Play Game method starts
   playGame() {
@@ -186,9 +121,19 @@ export class GameComponent implements OnInit, AfterViewInit {
       this.detectedGesture,
       this.computerChoice
     );
+    
 
-    if (result === 'Player') this.playerScore++;
-    else if (result === 'Computer') this.computerScore++;
+    Swal.fire({
+      title: result === 'Draw' ? 'It\'s a Draw!' : `${result} Wins!`,
+      html: `You chose: <strong>${this.detectedGesture}</strong><br>Computer chose: <strong>${this.computerChoice}</strong>`,
+      icon: result === 'Draw' ? 'info' : result === 'Player' ? 'success' : 'error',
+      confirmButtonText: 'Play Again',
+    }).then((response) => {
+      if (response.isConfirmed) {
+        this.detectGesture(); // Restart the game
+      }
+    });
   }
   //Play Game method ends
+
 }
